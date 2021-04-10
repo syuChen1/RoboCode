@@ -6,74 +6,124 @@ using System.Collections.Generic;
 
 namespace CAP4053.Student
 {
+    public class FiniteStateMachine
+    {
+        public enum GameState
+        {
+            start,
+            attack,
+            ram,
+            flee,
+        }
+        public enum Events
+        {
+            hasTarget,
+            noTarget,
+            ramable,
+            notRamable,
+            lowEnergy,
+            highEnergy,
+        }
+
+        public GameState gameState { get; set; }
+        private Action[,] transition;
+        Queue<Events> queue = new Queue<Events>();
+
+        public FiniteStateMachine()
+        {
+            this.transition = new Action[4, 6]
+            {   //hasTarget,      //noTarget      //ramable     //notRamable    //lowEnergy    //highEnergy 
+                {this.toAttack,   this.toStart,   this.toRam,   this.toAttack,  this.toFlee,   this.toStart}, //start
+                {this.toAttack,   this.toStart,   this.toRam,   this.toAttack,  this.toFlee,   this.toAttack}, //attack
+                {this.toRam,      this.toStart,   this.toRam,   this.toAttack,  this.toFlee,   this.toRam}, //ram
+                {this.toFlee,     this.toStart,   this.toFlee,  this.toFlee,    this.toFlee,   this.toAttack } //flee
+            };
+        }
+        public void enqueEvent(Events _event)
+        {
+            queue.Enqueue(_event);
+        }
+        public void Transition()
+        {
+            if (queue.Count != 0)
+                this.transition[(int)this.gameState, (int)queue.Dequeue()].Invoke();
+        }
+        private void toAttack() { this.gameState = GameState.attack; }
+        private void toStart() { this.gameState = GameState.start; }
+        private void toRam() { this.gameState = GameState.ram; }
+        private void toFlee() { this.gameState = GameState.flee; }
+
+    }
+
     public class SampleStudentBot : TeamRobot
     {
         public class Enermy
         {
             internal string name; // name of the scanned robot
-            internal double velocity; // velocity of the scanned robot from the last update
-            internal double heading; // heading of the scanned robot from the last update
-            internal double energy;
-            internal double bearing;
-            internal double distance;
-            internal double futureX; // predicated x coordinate to aim our gun at, when firing at the robot
-            internal double futureY; // predicated y coordinate to aim our gun at, when firing at the robot
-            internal double x; // x coordinate of the scanned robot based on the last update
-            internal double y; // y coordinate of the scanned robot based on the last update
-            internal int moveDirection = 1;
 
             internal Enermy(ScannedRobotEvent e)
             {
                 this.name = e.Name;
-                this.velocity = e.Velocity;
-                this.heading = e.HeadingRadians;
-                this.energy = e.Energy;
-                this.bearing = e.BearingRadians;
-                this.distance = e.Distance;
             }
         }
-
-        Dictionary<string, Enermy> enermies;
         Enermy target;
-        Dictionary<string, Action> gameState = new Dictionary<string, Action>();
 
         private int turnDirection;
         private int moveDirection = 1;
         private double moveAmount;
+        private double wallMargin = 60;
 
         Random r = new Random();
+        FiniteStateMachine fsm = new FiniteStateMachine();
+
+        public void initialState()
+        {
+            SetColors(Color.Red, Color.Red, Color.Red, Color.Red, Color.Red);
+            //SetTurnRadarRight(double.PositiveInfinity);
+            IsAdjustRadarForRobotTurn = true;
+            IsAdjustGunForRobotTurn = true;
+        }
 
         public override void Run()
         {
             initialState();
             while (true)
             {
-                SetTurnRadarRight(double.PositiveInfinity);
                 if (target != null)
-                    gameState["attack"]();
+                    fsm.enqueEvent(FiniteStateMachine.Events.hasTarget);
+                if (target == null)
+                {
+                    SetTurnRadarRight(double.PositiveInfinity);
+                    fsm.enqueEvent(FiniteStateMachine.Events.noTarget);
+                }
+                fsm.Transition();
+                Console.WriteLine(fsm.gameState);
                 Execute();
             }
-            /*
-            while (true)
-            {
-                //SetAhead(moveAmount * moveDirection);
-                //moveAmount = Math.Max(0, moveAmount - 1);
-
-                // Sets the robot to turn right or turn left (at maximum speed) or
-                // stop turning depending on the turn direction
-                //SetTurnRight(45 * turnDirection); // degrees
-                //SetTurnRadarRight(10);
-
-                int n = r.Next(75,100);
-                SetAhead(n);
-                SetBack(n);
-                SetTurnRadarRight(360);
-                Execute();
-            }*/
         }
-
         public override void OnScannedRobot(ScannedRobotEvent e)
         {
+
+            target = new Enermy(e);
+            double firePower = Math.Min((600 / e.Distance), 3);
+            if (Energy < firePower)
+            {
+                fsm.enqueEvent(FiniteStateMachine.Events.lowEnergy);
+            }
+            else if (e.Energy == 0 || (e.Energy < 45 && e.Energy < Energy))
+            {
+                fsm.enqueEvent(FiniteStateMachine.Events.ramable);
+            }
+            else if (e.Energy > 45 || e.Energy > Energy)
+            {
+                fsm.enqueEvent(FiniteStateMachine.Events.notRamable);
+            }
+            else if (Energy > firePower)
+            {
+                fsm.enqueEvent(FiniteStateMachine.Events.highEnergy);
+            }
+
+            fsm.Transition();
             /*
             double turnRadar = Utils.NormalRelativeAngleDegrees(Heading - RadarHeading + e.Bearing);
             TurnRadarRight(turnRadar);
@@ -96,25 +146,75 @@ namespace CAP4053.Student
                 SetFire(firePower);
             }
             */
-            Enermy enermy = new Enermy(e);
-            if (enermies.ContainsKey(e.Name)) //if we already have the enermy in the dict
+            if (fsm.gameState == FiniteStateMachine.GameState.attack)
             {
-                enermies[e.Name] = enermy;
-                Console.WriteLine(enermies[e.Name].distance);
+
+                double absbearing = e.BearingRadians + HeadingRadians;
+                double latVel = e.Velocity * Math.Sin(e.HeadingRadians - absbearing);
+                double gunTurnAmount;
+                SetTurnRadarLeftRadians(RadarTurnRemainingRadians);
+                double rand = r.Next(0, 1);
+                double aheadDistance = e.Distance - 140;
+                if (rand > 0.9)
+                {
+                    MaxVelocity = (12 * rand) + 12;
+                }
+                if (e.Distance > 150)
+                {
+                    gunTurnAmount = Utils.NormalRelativeAngle(absbearing - GunHeadingRadians + latVel / 22);
+                    SetTurnRightRadians(Utils.NormalRelativeAngle(absbearing - HeadingRadians + latVel / Velocity));
+                }
+                else
+                {
+                    gunTurnAmount = Utils.NormalRelativeAngle(absbearing - GunHeadingRadians + latVel / 15);
+                    SetTurnLeft(-90 - e.Bearing);
+                }
+                SetTurnGunRightRadians(gunTurnAmount);
+                SetAhead(aheadDistance * moveDirection);
+                if (Energy > firePower)
+                {
+                    SetFire(firePower);
+                }
+
             }
-            else
-                enermies.Add(e.Name, enermy);
-            if(target == null || target.name == enermy.name)
+            if (fsm.gameState == FiniteStateMachine.GameState.ram)
             {
-                target = enermy;
+
+                double absbearing = e.BearingRadians + HeadingRadians;
+                double latVel = e.Velocity * Math.Sin(e.HeadingRadians - absbearing);
+                double gunTurnAmount;
+                gunTurnAmount = Utils.NormalRelativeAngle(absbearing - GunHeadingRadians + latVel / 22);
+                SetTurnRadarLeftRadians(RadarTurnRemainingRadians);
+                SetTurnGunRightRadians(gunTurnAmount);
+                if (Energy > firePower)
+                {
+                    SetFire(firePower);
+                }
+                SetTurnRightRadians(Utils.NormalRelativeAngle(e.BearingRadians));
+                SetAhead((e.Distance + 500) * moveDirection);
+
             }
 
+            if (fsm.gameState == FiniteStateMachine.GameState.flee)
+            {
+                SetTurnRadarLeftRadians(RadarTurnRemainingRadians);
+                SetTurnRight(Utils.NormalRelativeAngle(e.Bearing + 90));
+                if (tooCloseToWall())
+                {
+                    MaxVelocity = 2.9;
+                }
+                else
+                {
+                    MaxVelocity = Math.Min((0.7 + r.NextDouble()), 1.0) * 12;
+                }
+                SetAhead(Math.Max(e.Distance, 100) * moveDirection * -1);
+            }
         }
 
         public override void OnHitByBullet(HitByBulletEvent e)
         {
-            TurnRight(45);
-            Back(100);
+            //TurnRight(45);
+            //Back(100);
         }
 
         public override void OnHitWall(HitWallEvent e)
@@ -125,59 +225,16 @@ namespace CAP4053.Student
         public override void OnHitRobot(HitRobotEvent e)
         {
             //Back(50);
-           // Ahead(100);
+            // Ahead(100);
         }
 
         public override void OnRobotDeath(RobotDeathEvent e)
         {
-            enermies.Remove(e.Name);
-            if (target != null && target.name == e.Name)
+            if (e.Name == target.name)
                 target = null;
         }
 
-        public void initialState()
-        {
-            enermies = new Dictionary<string, Enermy>();
-            gameState.Add("attack", () => handleAttack(target));
 
-            target = null;
-            SetColors(Color.Red, Color.Red, Color.Red, Color.Red, Color.Red);
-            //SetTurnRadarRight(double.PositiveInfinity);
-            IsAdjustRadarForRobotTurn = true;
-            IsAdjustGunForRobotTurn = true;
-            SetTurnRadarRight(double.PositiveInfinity);
-        }
-
-        public void handleAttack(Enermy e)
-        {
-            double absbearing = e.bearing + HeadingRadians;
-            double latVel = e.velocity * Math.Sin(e.heading - absbearing);
-            double gunTurnAmount;
-            SetTurnRadarLeftRadians(RadarTurnRemainingRadians);
-            double rand = r.Next(0, 1);
-            double firePower = Math.Min((600 / e.distance), 3);
-            double aheadDistance = e.distance - 50;
-            if (rand > 0.9)
-            {
-                MaxVelocity = (12 * rand) + 12;
-            }
-            if (e.distance > 60)
-            {
-                gunTurnAmount = Utils.NormalRelativeAngle(absbearing - GunHeadingRadians + latVel / 22);
-                SetTurnGunRightRadians(gunTurnAmount);
-                SetTurnRightRadians(Utils.NormalRelativeAngle(absbearing - HeadingRadians + latVel / Velocity));
-                SetAhead(aheadDistance * moveDirection);
-                SetFire(firePower);
-            }
-            else
-            {
-                gunTurnAmount = Utils.NormalRelativeAngle(absbearing - GunHeadingRadians + latVel / 15);
-                SetTurnGunRightRadians(gunTurnAmount);
-                SetTurnLeft(-90 - e.bearing);
-                SetAhead(aheadDistance * moveDirection);
-                SetFire(firePower);
-            }
-        }
         private double getEnermyX(double eRelativeAngle, ScannedRobotEvent e)
         {
             double enermyX = 0;
@@ -264,15 +321,15 @@ namespace CAP4053.Student
         {
             double deltaX = enermyX - X;
             double deltaY = enermyY - Y;
-            double bearing = Math.Atan2(deltaY,deltaX);
-             if (deltaX >= 0 && deltaY >= 0)
+            double bearing = Math.Atan2(deltaY, deltaX);
+            if (deltaX >= 0 && deltaY >= 0)
                 bearing = 90.0 - toDegree(bearing);
             else if (deltaX >= 0 && deltaY <= 0)
                 bearing = Math.Abs(toDegree(bearing)) + 90.0;
             else if (deltaX <= 0 && deltaY <= 0)
-                bearing = -(toDegree(bearing)-90);
+                bearing = -(toDegree(bearing) - 90);
             else if (deltaX <= 0 && deltaY >= 0)
-                bearing = -(toDegree(bearing)+270);
+                bearing = -(toDegree(bearing) + 270);
             return bearing;
         }
         private double toDegree(double radians)
@@ -284,5 +341,11 @@ namespace CAP4053.Student
         {
             return degree * Math.PI / 180;
         }
+        private bool tooCloseToWall()
+        {
+            return (X <= wallMargin || X >= BattleFieldWidth - wallMargin
+                 || Y <= wallMargin || Y >= BattleFieldHeight - wallMargin);
+        }
+
     }
 }
