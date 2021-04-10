@@ -79,7 +79,6 @@ namespace CAP4053.Student
         public void initialState()
         {
             SetColors(Color.Red, Color.Red, Color.Red, Color.Red, Color.Red);
-            //SetTurnRadarRight(double.PositiveInfinity);
             IsAdjustRadarForRobotTurn = true;
             IsAdjustGunForRobotTurn = true;
         }
@@ -162,12 +161,16 @@ namespace CAP4053.Student
                 if (e.Distance > 150)
                 {
                     gunTurnAmount = Utils.NormalRelativeAngle(absbearing - GunHeadingRadians + latVel / 22);
-                    SetTurnRightRadians(Utils.NormalRelativeAngle(absbearing - HeadingRadians + latVel / Velocity));
+                    SetTurnRightRadians(Utils.NormalRelativeAngle(e.BearingRadians + latVel / Velocity));
                 }
                 else
                 {
                     gunTurnAmount = Utils.NormalRelativeAngle(absbearing - GunHeadingRadians + latVel / 15);
-                    SetTurnLeft(-90 - e.Bearing);
+                    SetTurnRight(90 + e.Bearing - (15-moveDirection));
+                }
+                if(Time %20 == 0)
+                {
+                    moveDirection *= -1;
                 }
                 SetTurnGunRightRadians(gunTurnAmount);
                 SetAhead(aheadDistance * moveDirection);
@@ -179,7 +182,7 @@ namespace CAP4053.Student
             }
             if (fsm.gameState == FiniteStateMachine.GameState.ram)
             {
-
+                moveDirection = 1;
                 double absbearing = e.BearingRadians + HeadingRadians;
                 double latVel = e.Velocity * Math.Sin(e.HeadingRadians - absbearing);
                 double gunTurnAmount;
