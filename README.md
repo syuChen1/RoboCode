@@ -27,6 +27,5 @@ enemy’s bullet comes from the left. It gives “ManhattanProject” a better c
 Once the target gets in range, “ManhattanProject” will start shooting the target until it runs out of energy, the energy is 
 outside of its range again, or energy is dead. “ManhattanProject” will shoot a bullet with fire power ranging from 1.0 - 3.0 
 depending on how far the energy is.
-
 ![image](https://user-images.githubusercontent.com/44207825/116946550-69591280-ac48-11eb-9266-6146b442f0d4.png)
 
