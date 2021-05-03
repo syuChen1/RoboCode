@@ -16,13 +16,17 @@ will enqueue an event when a certain requirement is fulfilled.  “ManhattanProj
 state(or stay in the same state) each tick of the game. “ManhattanProject” will react to an event differently in different states. 
 ![image](https://user-images.githubusercontent.com/44207825/116946407-0798a880-ac48-11eb-919e-6cabcb5423ec.png)
 
+
 “ManhattanProject” will alway stay sideways (perpendicular - 17°) to its target except when it’s trying to ram[3]. It will also 
 change its direction every 20 ticks to prevent being too predictive. “ManhattanProject” always moves up and down while the 
 enemy’s bullet comes from the left. It gives “ManhattanProject” a better chance of dodging the bullet.
 ![image](https://user-images.githubusercontent.com/44207825/116946517-4d557100-ac48-11eb-8742-54f011288c58.png)
 
+
 “ManhattanProject” has a maximum shooting range of 600 units. It will not shoot any unit if it is 600 units away from it. 
 Once the target gets in range, “ManhattanProject” will start shooting the target until it runs out of energy, the energy is 
 outside of its range again, or energy is dead. “ManhattanProject” will shoot a bullet with fire power ranging from 1.0 - 3.0 
 depending on how far the energy is.
+
 ![image](https://user-images.githubusercontent.com/44207825/116946550-69591280-ac48-11eb-9266-6146b442f0d4.png)
+
