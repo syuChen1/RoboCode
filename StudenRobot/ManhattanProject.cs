@@ -6,6 +6,7 @@ using System.Collections.Generic;
 
 namespace CAP4053.Student
 {
+    //https://stackoverflow.com/questions/5923767/simple-state-machine-example-in-c Finite State Machine
     public class FiniteStateMachine
     {
         public enum GameState
@@ -55,7 +56,7 @@ namespace CAP4053.Student
 
     }
 
-    public class SampleStudentBot : TeamRobot
+    public class ManhattanProject : TeamRobot
     {
         public class Enermy
         {
@@ -70,13 +71,13 @@ namespace CAP4053.Student
         private int moveDirection = 1;
         private double wallMargin = 60;
         private double targetDist = 600;
-
+        Color myRgbColor = Color.FromArgb(46, 46, 58);
         Random r = new Random();
         FiniteStateMachine fsm = new FiniteStateMachine();
 
         public void initialState()
         {
-            SetColors(Color.Red, Color.Red, Color.Red, Color.Red, Color.Red);
+            SetColors(Color.Black,Color.Gold, myRgbColor, myRgbColor, Color.Gold);
             IsAdjustRadarForRobotTurn = true;
             IsAdjustGunForRobotTurn = true;
         }
@@ -100,121 +101,118 @@ namespace CAP4053.Student
         }
         public override void OnScannedRobot(ScannedRobotEvent e)
         {
+            if (!IsTeammate(e.Name))
+            {
+                target = new Enermy(e);
+                double firePower = Math.Min((600 / e.Distance), 3);
+                if (Energy < firePower)
+                    fsm.enqueEvent(FiniteStateMachine.Events.lowEnergy);
+                if (e.Energy == 0 || (e.Energy < 45 && e.Energy < Energy))
+                    fsm.enqueEvent(FiniteStateMachine.Events.ramable);
+                if (e.Energy > 45 || e.Energy > Energy)
+                    fsm.enqueEvent(FiniteStateMachine.Events.notRamable);
+                if (Energy > firePower)
+                    fsm.enqueEvent(FiniteStateMachine.Events.highEnergy);
 
-            target = new Enermy(e);
-            double firePower = Math.Min((600 / e.Distance), 3);
-            if (Energy < firePower)
-            {
-                fsm.enqueEvent(FiniteStateMachine.Events.lowEnergy);
-            }
-            if (e.Energy == 0 || (e.Energy < 45 && e.Energy < Energy))
-            {
-                fsm.enqueEvent(FiniteStateMachine.Events.ramable);
-            }
-            else if (e.Energy > 45 || e.Energy > Energy)
-            {
-                fsm.enqueEvent(FiniteStateMachine.Events.notRamable);
-            }
-            else if (Energy > firePower)
-            {
-                fsm.enqueEvent(FiniteStateMachine.Events.highEnergy);
-            }
+                fsm.Transition();
 
-            fsm.Transition();
+                if (fsm.gameState == FiniteStateMachine.GameState.attack)
+                    Attack(e, firePower);
 
-            if (fsm.gameState == FiniteStateMachine.GameState.attack)
+                if (fsm.gameState == FiniteStateMachine.GameState.ram)
+                    Ram(e, firePower);
+
+                if (fsm.gameState == FiniteStateMachine.GameState.flee)
+                    Flee(e, firePower);
+            }
+            else
             {
-                double absbearing = Utils.NormalRelativeAngle(HeadingRadians + e.BearingRadians);
-                double bulletSpeed = 20 - firePower * 3;
-                double enermyHeading = Utils.NormalRelativeAngle(e.HeadingRadians);
-                double enermyX = getEnermyX(absbearing, e);
-                double enermyY = getEnermyY(absbearing, e);
-                long time = (long)(e.Distance / bulletSpeed);
-                double enermyFutureX = getEnermyFutureX(enermyX, time, e);
-                double enermyFutureY = getEnermyFutureY(enermyY, time, e);
-                double futureBearing = Utils.NormalRelativeAngle(getFutureBearing(enermyFutureX, enermyFutureY) - HeadingRadians);
-                futureBearing = futureBearing > 3.5? 0: e.Velocity * getFutureRat(e);
-                double gunTurnAmount;
-                SetTurnRadarLeftRadians(RadarTurnRemainingRadians);
-                double aheadDistance = e.Distance - 130;
-                if (e.Distance > 140)
-                {
-                    gunTurnAmount = Utils.NormalRelativeAngle(absbearing - GunHeadingRadians + futureBearing / 22);
-                    SetTurnRightRadians(Utils.NormalRelativeAngle(e.BearingRadians + futureBearing / Velocity));
-                }
-                else
-                {
-                    gunTurnAmount = Utils.NormalRelativeAngle(absbearing - GunHeadingRadians + futureBearing / 15);
-                    SetTurnRight(90 + e.Bearing - (15 * moveDirection));
-                }
-                if(Time %20 == 0)
+                if (e.Distance < 80)
                 {
                     moveDirection *= -1;
                 }
-                SetTurnGunRightRadians(gunTurnAmount);
-                SetAhead(aheadDistance * moveDirection);
-                if (Energy > firePower && GunHeat == 0 && e.Distance < targetDist)
-                {
-                    SetFire(firePower);
-                }
-
-            }
-            if (fsm.gameState == FiniteStateMachine.GameState.ram)
-            {
-                moveDirection = 1;
-                double absbearing = Utils.NormalRelativeAngle(HeadingRadians + e.BearingRadians);
-                double bulletSpeed = 20 - firePower * 3;
-                double enermyHeading = Utils.NormalRelativeAngle(e.HeadingRadians);
-                double enermyX = getEnermyX(absbearing, e);
-                double enermyY = getEnermyY(absbearing, e);
-                long time = (long)(e.Distance / bulletSpeed);
-                double enermyFutureX = getEnermyFutureX(enermyX, time, e);
-                double enermyFutureY = getEnermyFutureY(enermyY, time, e);
-                double futureBearing = Utils.NormalRelativeAngle(getFutureBearing(enermyFutureX, enermyFutureY) - HeadingRadians);
-                futureBearing = futureBearing > 3.5 ? 0 : e.Velocity * getFutureRat(e);
-                double gunTurnAmount;
-                gunTurnAmount = Utils.NormalRelativeAngle(absbearing - GunHeadingRadians + futureBearing / 15);
-                SetTurnRadarLeftRadians(RadarTurnRemainingRadians);
-                SetTurnGunRightRadians(gunTurnAmount);
-                if (Energy > firePower && GunHeat == 0 && e.Distance < targetDist)
-                {
-                    SetFire(firePower);
-                }
-                SetTurnRightRadians(Utils.NormalRelativeAngle(e.BearingRadians));
-                SetAhead((e.Distance + 500) * moveDirection);
-
-            }
-
-            if (fsm.gameState == FiniteStateMachine.GameState.flee)
-            {
-                SetTurnRadarLeftRadians(RadarTurnRemainingRadians);
-                SetTurnRight(Utils.NormalRelativeAngle(e.Bearing + 90));
-                if (tooCloseToWall())
-                {
-                    MaxVelocity = 2.9;
-                }
-                else
-                {
-                    MaxVelocity = Math.Min((0.7 + r.NextDouble()), 1.0) * 12;
-                }
-                SetAhead(Math.Max(e.Distance, 100) * moveDirection * -1);
             }
         }
 
-        public override void OnHitByBullet(HitByBulletEvent e)
+        public void Attack(ScannedRobotEvent e, double firePower)
         {
+            //http://mark.random-article.com/weber/java/robocode/lesson4.html predictive shooting
+            double absbearing = Utils.NormalRelativeAngle(HeadingRadians + e.BearingRadians);
+            double bulletSpeed = 20 - firePower * 3;
+            double enermyHeading = Utils.NormalRelativeAngle(e.HeadingRadians);
+            double enermyX = getEnermyX(absbearing, e);
+            double enermyY = getEnermyY(absbearing, e);
+            long time = (long)(e.Distance / bulletSpeed);
+            double enermyFutureX = getEnermyFutureX(enermyX, time, e);
+            double enermyFutureY = getEnermyFutureY(enermyY, time, e);
+            double futureBearing = Utils.NormalRelativeAngle(getFutureBearing(enermyFutureX, enermyFutureY) - HeadingRadians);
+            futureBearing = futureBearing > 3.5 ? 0 : e.Velocity * getFutureRat(e);
+            double gunTurnAmount;
+            SetTurnRadarLeftRadians(RadarTurnRemainingRadians);
+            double aheadDistance = e.Distance - 130;
+            // http://mark.random-article.com/weber/java/robocode/lesson5.html circle in and strafing
 
+            gunTurnAmount = Utils.NormalRelativeAngle(futureBearing / 16 + absbearing - GunHeadingRadians);
+            SetTurnRightRadians(Utils.NormalRelativeAngle(Math.PI / 2 + e.BearingRadians - (0.3 * moveDirection)));
+ 
+            if (Time % 20 == 0)
+            {
+                moveDirection *= -1;
+            }
+            SetTurnGunRightRadians(gunTurnAmount);
+            SetAhead(aheadDistance * moveDirection);
+            if (Energy > firePower && GunHeat == 0 && e.Distance < targetDist)
+            {
+                SetFire(firePower);
+            }
+        }
+
+        public void Ram(ScannedRobotEvent e, double firePower)
+        {
+            moveDirection = 1;
+            double absbearing = Utils.NormalRelativeAngle(HeadingRadians + e.BearingRadians);
+            double bulletSpeed = 20 - firePower * 3;
+            double enermyHeading = Utils.NormalRelativeAngle(e.HeadingRadians);
+            double enermyX = getEnermyX(absbearing, e);
+            double enermyY = getEnermyY(absbearing, e);
+            long time = (long)(e.Distance / bulletSpeed);
+            double enermyFutureX = getEnermyFutureX(enermyX, time, e);
+            double enermyFutureY = getEnermyFutureY(enermyY, time, e);
+            double futureBearing = Utils.NormalRelativeAngle(getFutureBearing(enermyFutureX, enermyFutureY) - HeadingRadians);
+            futureBearing = futureBearing > 3.5 ? 0 : e.Velocity * getFutureRat(e);
+            double gunTurnAmount;
+            SetTurnRadarLeftRadians(RadarTurnRemainingRadians);
+            gunTurnAmount = Utils.NormalRelativeAngle(absbearing - GunHeadingRadians + futureBearing / 16);
+            SetTurnGunRightRadians(gunTurnAmount);
+            if (Energy > firePower && GunHeat == 0 && e.Distance < targetDist)
+            {
+                SetFire(firePower);
+            }
+            SetTurnRightRadians(Utils.NormalRelativeAngle(e.BearingRadians));
+            SetAhead((e.Distance + 500) * moveDirection);
+        }
+        public void Flee(ScannedRobotEvent e, double firePower)
+        {
+            SetTurnRadarLeftRadians(RadarTurnRemainingRadians);
+            SetTurnRight(Utils.NormalRelativeAngle(e.BearingRadians + Math.PI/2));
+            if (Time % 20 == 0)
+            {
+                moveDirection *= -1;
+            }
+            if (tooCloseToWall())
+            {
+                MaxVelocity = 2.9;
+            }
+            else
+            {
+                MaxVelocity = Math.Min((0.7 + r.NextDouble()), 1.0) * 12;
+            }
+            SetAhead(Math.Max(e.Distance, 100) * moveDirection * -1);
         }
 
         public override void OnHitWall(HitWallEvent e)
         {
             moveDirection *= -1;
-        }
-
-        public override void OnHitRobot(HitRobotEvent e)
-        {
-            //Back(50);
-            //Ahead(100);
         }
 
         public override void OnRobotDeath(RobotDeathEvent e)
@@ -327,15 +325,6 @@ namespace CAP4053.Student
             double abshearing = HeadingRadians + e.BearingRadians;
             double rat = Math.Sin(e.HeadingRadians - abshearing);
             return rat;
-        }
-        private double toDegree(double radians)
-        {
-            return radians * 180 / Math.PI;
-        }
-
-        private double toRadians(double degree)
-        {
-            return degree * Math.PI / 180;
         }
         private bool tooCloseToWall()
         {
